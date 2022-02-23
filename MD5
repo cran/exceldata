@@ -1,8 +1,8 @@
-178e028a762594c34f45dfb6423aae51 *DESCRIPTION
+eb4e4ddcab9b1a092b238cb88925f0bc *DESCRIPTION
 40aa389de44e65b6aac6aec2b46c763d *LICENSE
 9c66a8aaf9527e7b0d0ddb5e1d37fdc0 *NAMESPACE
-da3b32c4505b36ec9445d47e4fd1835b *R/main.R
-8fac3a38876fa30f374910d797e7f094 *README.md
+1f66dfc148d3e6ef406d6203d6c1a011 *R/main.R
+c82425cbab40085c3f3401a04d0d79ab *README.md
 eb57b2c3f419e52c8fb34eaea6782ed0 *inst/extdata/exampleData.xlsx
 19c3a61800063ae919a0403a940171ab *inst/extdata/exampleData06Jan22.log
 bad5e9a36c9a5ff647a57f597f880d8f *inst/extdata/exampleData_withErrors.xlsx
@@ -14,7 +14,7 @@ ae52426ebf3a1c42e5d57e103506264c *man/createCategorisedVar.Rd
 5aab2036b90ca08263ea47bc9c3d0208 *man/createRecodedVar.Rd
 fc8d35f88973f80dae8d6ce8be66270e *man/createSurvVar.Rd
 4f793e9f8a580bb9eb2fb6fa8bce6791 *man/importCodes.Rd
-cc36a68b6b844bc43cab8eee707e0d39 *man/importExcelData.Rd
+0d01a831f2e263bc8fd3f208b3ccfd29 *man/importExcelData.Rd
 386c60bff973074244b4dde1bd3e559b *man/plotVariables.Rd
 572bca504e720aedc76aa6221a2d182c *man/readDataDict.Rd
 ec1947f0dcca132bacc1a9937c11549f *man/readExcelData.Rd
