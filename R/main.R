@@ -107,7 +107,12 @@ readDataDict <- function(excelFile,dictionarySheet ='DataDictionary',range,colna
 #'
 #' https://github.com/biostatsPMH/exceldata#readme
 
-#' Warning: If SetErrorsMissing = TRUE then a subsequent call to checkData will not return any errors, because the errors have been set to missing.
+#' Note that as of release 0.1.1.1 the log file will give row numbers
+#' corresponding to the row number in Excel, as opposed to the row number in the
+#' data frame
+#'
+#' Warning: If SetErrorsMissing = TRUE then a subsequent call to checkData will
+#' not return any errors, because the errors have already been set to missing.
 #'
 #' NOTE: This function will only read in those columns present in the DataDictionary
 #' @param excelFile path and filename of the data file containing the data and dictionary
@@ -145,6 +150,9 @@ readDataDict <- function(excelFile,dictionarySheet ='DataDictionary',range,colna
 #' plots <- plotVariables(data=data,dictionary=dictionary,IDvar = 'ID')
 #'
 #' @export
+#' excelFile= 'C:/Users/lisa/OneDrive - UHN/Giuliani/CAPCR_20-5589/FollowUp Survey/data/DataDictionary_CovidSurvey.xlsm'
+#' dictionarySheet='DataDictionary'
+#' dataSheet='03 - CODED + CLEANED'
 importExcelData <- function(excelFile,dictionarySheet='DataDictionary',dataSheet='DataEntry',id,saveWarnings=TRUE,setErrorsMissing=TRUE,range,colnames,origin,timeUnit='month'){
   if (missing(excelFile) ) stop('The excel file containing the data dictionary and data entry table are required')
   if (missing(range)) range = NULL
@@ -161,13 +169,21 @@ importExcelData <- function(excelFile,dictionarySheet='DataDictionary',dataSheet
 
     dictionary <- readDataDict(excelFile,dictionarySheet =dictionarySheet,range,colnames,origin)
 
-    data <- suppressWarnings(readExcelData(excelFile,dictionary =  dictionary,dataSheet=dataSheet,saveWarnings=TRUE,setErrorsMissing=FALSE,range,origin))
+    data <- suppressWarnings(readExcelData(excelFile,dictionary =  dictionary,
+                                           dataSheet=dataSheet,
+                                           saveWarnings=TRUE,
+                                           setErrorsMissing=FALSE,
+                                           range,origin))
     if ('list' %in% class(data)){
       warnings <- data$warnings
       data <- data$data
     }
     if (missing(id)) checks <- checkData(dictionary,data) else checks <- checkData(dictionary,data,id)
     if (!is.null(checks)){
+      if (setErrorsMissing){
+        message('Date entry errors found, please refer to log file.\n These have been set to missing.')
+      } else message('Date entry errors found, please refer to log file.\n Use setErrorsMissing=T to recode these values as missing.')
+
       WriteToLog(msg =  'Data Entry Errors:\n',timestamp = T,append=T)
       for (v in 1:nrow(checks$errors_by_variable)){
         WriteToLog(msg =  paste0('Rows (or IDs) with errors in: ',checks$errors_by_variable[v,1],' \n',
@@ -222,8 +238,8 @@ importExcelData <- function(excelFile,dictionarySheet='DataDictionary',dataSheet
 #' }
 readExcelData <- function(excelFile,dictionary,dataSheet='DataEntry',saveWarnings=FALSE,setErrorsMissing=FALSE,range,origin){
   if (missing(excelFile) | missing(dictionary)) stop(paste('Both the excel data file and the data dictionary are required arguments.\n',
-                                                          'Use exceldata::readDataDict to read in the data dictionary before importing data.\n',
-                                                          'Or run exceldata::importExcelData to import the dictionary and data files and create factor variables.'))
+                                                           'Use exceldata::readDataDict to read in the data dictionary before importing data.\n',
+                                                           'Or run exceldata::importExcelData to import the dictionary and data files and create factor variables.'))
   if (all(names(dictionary) != c('VariableName', 'Description', 'Type', 'Minimum', 'Maximum', 'Levels'))) {
     stop('The specified dictionary does not have the expected columns. \nTry running readDataDict again.')
   }
@@ -383,7 +399,7 @@ checkData <-function(dictionary,data,id){
                setdiff(names(data),dictionary[['VariableName']])))
   }
 
-  if (!all(dictionary[['VariableName']] %in% names(data) )){
+  if (!all(dictionary[['VariableName']][dictionary[['Type']]!='calculated'] %in% names(data) )){
     warning(paste('Variables missing from the data table:\n',
                   paste(setdiff(dictionary[['VariableName']],names(data)),collapse = ',')))
   }
@@ -435,7 +451,7 @@ checkData <-function(dictionary,data,id){
     # keep only rows with errors
     if (missing(id)){
       id = 'originalRowID'
-      rowIDs = 1:nrow(entry_errors)
+      rowIDs = 1:nrow(entry_errors)+1
     } else{
       rowIDs = data[[id]]
     }
@@ -444,12 +460,12 @@ checkData <-function(dictionary,data,id){
     entry_errors <- entry_errors[rowsToKeep,]
     row_errors = data.frame(originalRowID = entry_errors[[id]],
                             Errors = sapply(1:nrow(entry_errors),function(i){
-                              paste(names(entry_errors)[-1][as.logical(as.vector(entry_errors[i,-1]))],collapse = ",")
+                              paste(names(entry_errors)[-1][stats::na.omit(as.logical(as.vector(entry_errors[i,-1])))],collapse = ",")
                             }))
     names(row_errors)[1] <- id
     var_errors = data.frame(Variable = names(entry_errors)[-1],
                             Row_Errors = sapply(names(entry_errors)[-1],function(v){
-                              paste(entry_errors[[id]][as.logical(as.vector(entry_errors[[v]]))],collapse = ",")
+                              paste(stats::na.omit(entry_errors[[id]][as.logical(as.vector(entry_errors[[v]]))]),collapse = ",")
                             }))
     rownames(var_errors) <- NULL
     colnames(var_errors)[2] <- ifelse(missing(id),'Row_Errors','IDs_With_Errors')
@@ -490,7 +506,7 @@ addFactorVariables <-function(data,dictionary,keepOriginal=TRUE){
                setdiff(names(data),dictionary[['VariableName']])))
   }
 
-  if (!all(dictionary[['VariableName']] %in% names(data) )){
+  if (!all(dictionary[['VariableName']][dictionary[['Type']]!='calculated'] %in% names(data) )){
     warning(paste('Variables missing from the data table:\n',
                   paste(setdiff(dictionary[['VariableName']],names(data)),collapse = ',')))
   }
@@ -706,21 +722,26 @@ createRecodedVar <- function(data,dictionary,newVarName,instructions){
 
   codeReps <-diff(  c(grep("=",instructions),length(instructions)+1))
   newCodes <- sapply(instructions[grep("=",instructions)],function(x) trimws(unlist(strsplit(x,"="))[1]))
-  oldCodes=gsub('.*=','',instructions[-1])
-  labels = unlist(mapply(rep,x=newCodes,times=codeReps))
+  oldCodes <- sapply(gsub('.*=','',instructions[-1]),trimws)
+  labels <- unname(unlist(mapply(rep,x=newCodes,times=codeReps)))
 
 
-  # If the variable is a codes variable, then we need the original entered levels
+  # If the variable is a codes variable, then we may need the original entered levels
   if (dictionary[["Type"]][dictionary[['VariableName']]==originalVar]=='codes') {
     factorLevels = try(importCodes(dictionary[["Levels"]][dictionary[['VariableName']]==originalVar]),silent = T)
 
     if (class(factorLevels)[1]=='try-error'){
       warning(paste('Data codes for',originalVar,'could not be extracted,', newVarName,'not created.'))
     } else {
-
-      oldCodes <- data.frame(oldCodes=oldCodes)
-      codeLookup <- merge(oldCodes,factorLevels,by.x = "oldCodes", by.y = "code" )
-      recoded = droplevels(factor(data[[originalVar]],levels = codeLookup[,2],labels=labels))
+      # code labels supplied
+      if (length(setdiff(oldCodes,factorLevels$label))==0){
+        recoded = droplevels(factor(data[[originalVar]],levels = oldCodes,labels=labels))
+      # numeric codes supplied
+      } else{
+        oldCodes <- data.frame(oldCodes=oldCodes)
+        codeLookup <- merge(oldCodes,factorLevels,by.x = "oldCodes", by.y = "code" )
+        recoded = droplevels(factor(data[[originalVar]],levels = codeLookup[,2],labels=labels))
+      }
     }
   } else{
     recoded = droplevels(factor(data[[originalVar]],levels = oldCodes,labels=labels))
